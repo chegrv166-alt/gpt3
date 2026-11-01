@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 TraitValue = Annotated[int, Field(strict=True, ge=0, le=5)]
 Scale = Annotated[float, Field(strict=True, ge=0, le=100, allow_inf_nan=False)]
 TRAITS = frozenset('belonging closeness autonomy recognition stability novelty initiative sociability openness directness tact conformity rejection_sensitivity humiliation_sensitivity suspiciousness impulsivity grudge_persistence reconciliation_readiness inclusion_expectation contact_expectation reciprocity_expectation loyalty_priority honesty_priority privacy_priority'.split())
-ActionKind = Literal['rest', 'invite', 'ask', 'distance', 'tell', 'accept', 'decline', 'clarify', 'introduce', 'invite_group', 'accept_introduction', 'decline_introduction']
+ActionKind = Literal['rest', 'invite', 'ask', 'distance', 'tell', 'accept', 'decline', 'clarify', 'introduce', 'invite_group', 'accept_introduction', 'decline_introduction', 'discontent', 'support_request', 'support', 'apology', 'acknowledge', 'disagree', 'defer']
 
 
 class Model(BaseModel):
@@ -139,6 +139,50 @@ class Scenario(Frozen):
         return self
 
 
+InteractionKind = Literal['discontent', 'support_request', 'support', 'apology']
+InteractionResponse = Literal['acknowledge', 'disagree', 'accept', 'decline', 'defer']
+
+
+class SocialMessage(Frozen):
+    kind: InteractionKind
+    subject_event: str
+    about: str
+    content: Literal['hurt_report', 'invitation_expected', 'support_offer', 'regret_hurt', 'acknowledge_act']
+
+    @model_validator(mode='after')
+    def content_matches(self) -> Self:
+        allowed = {'discontent': ('hurt_report','invitation_expected'), 'support_request': ('hurt_report',),
+                   'support': ('support_offer',), 'apology': ('regret_hurt','acknowledge_act')}
+        if self.content not in allowed[self.kind]:
+            raise ValueError('Содержание не соответствует виду обращения')
+        return self
+
+
+class SocialInteraction(Model):
+    id: str
+    initiator: str
+    recipient: str
+    message: SocialMessage
+    created_tick: Annotated[int, Field(ge=0)]
+    expires_tick: Annotated[int, Field(ge=0)]
+    offered_event: str
+    response_event: str | None = None
+    status: Literal['pending','completed','declined','deferred','expired'] = 'pending'
+
+
+class InteractionEffect(Frozen):
+    interaction_id: str
+    event_id: str
+    actor: str
+    target: str
+    subject_event: str
+    trust_delta: Annotated[float, Field(ge=0, le=2, allow_inf_nan=False)] = 0
+    tension_delta: Annotated[float, Field(ge=-3, le=1, allow_inf_nan=False)] = 0
+    emotion_delta: Annotated[float, Field(ge=-6, le=0, allow_inf_nan=False)] = 0
+    reason: str
+    token: str | None = None
+
+
 class WorldEvent(Frozen):
     id: str
     tick: Annotated[int, Field(ge=0)]
@@ -146,6 +190,8 @@ class WorldEvent(Frozen):
     participants: tuple[str, ...]
     location: str
     outcome: str
+    social_message: SocialMessage | None = None
+    social_response: InteractionResponse | None = None
     organizer: str | None = None
     context: Literal['unknown', 'no_prior_group_plan'] = 'unknown'
     claim: Literal['meeting_confirmed', 'no_prior_group_plan', 'refused', 'unanswered'] | None = None
@@ -157,6 +203,7 @@ class WorldEvent(Frozen):
 
 
 class KnowledgeRecord(Frozen):
+    reply_to: str | None = None
     event_id: str
     kind: str
     participants: tuple[str, ...]
@@ -165,6 +212,8 @@ class KnowledgeRecord(Frozen):
     method: Literal['observation', 'message']
     confidence: Annotated[float, Field(strict=True, ge=0, le=1)]
     via_event: str
+    social_message: SocialMessage | None = None
+    social_response: InteractionResponse | None = None
     organizer: str | None = None
     context: Literal['unknown', 'no_prior_group_plan'] = 'unknown'
 
@@ -236,6 +285,8 @@ class SocialSituation(Model):
 
 
 class NPCState(Model):
+    reply_tick: int = -1
+    reply_count: Annotated[int, Field(ge=0, le=2)] = 0
     last_action_tick: Annotated[int, Field(ge=-1)] = -1
     energy: Scale = 80
     loneliness: Scale = 35
@@ -323,6 +374,7 @@ class GroupTracker(Model):
 
 
 class Candidate(Frozen):
+    social_message: SocialMessage | None = None
     action: ActionKind
     target: str | None = None
     event_id: str | None = None
@@ -365,7 +417,7 @@ class DecisionTrace(Frozen):
 
 
 class WorldState(Model):
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     tick: Annotated[int, Field(ge=0)] = 0
     scenario: Scenario
     states: dict[str, NPCState]
@@ -373,6 +425,8 @@ class WorldState(Model):
     plans: list[SocialPlan] = Field(default_factory=list)
     events: list[WorldEvent] = Field(default_factory=list)
     traces: list[DecisionTrace] = Field(default_factory=list)
+    interactions: dict[str, SocialInteraction] = Field(default_factory=dict)
+    effects: list[InteractionEffect] = Field(default_factory=list)
     groups: GroupTracker = Field(default_factory=GroupTracker)
     pending_questions: list[str] = Field(default_factory=list)
 
@@ -410,7 +464,9 @@ class WorldState(Model):
                 if key != k.event_id or key not in event_ids or k.via_event not in event_ids or k.source not in ids:
                     raise ValueError('Некорректная ссылка знания')
                 fact, via = events_by_id[key], events_by_id[k.via_event]
-                if k.kind != fact.kind or k.participants != fact.participants or k.organizer != fact.organizer:
+                expected_reply=fact.causes[0] if fact.kind in ('social_interaction_answered','social_interaction_expired') and fact.causes else None
+                if k.reply_to!=expected_reply:raise ValueError('Неверная связь ответа в знании')
+                if k.kind != fact.kind or k.participants != fact.participants or k.organizer != fact.organizer or k.social_message != fact.social_message or k.social_response != fact.social_response:
                     raise ValueError('Знание не соответствует факту')
                 if not fact.tick <= k.acquired_tick <= self.tick or via.tick > k.acquired_tick:
                     raise ValueError('Знание из будущего')
@@ -623,4 +679,6 @@ class WorldState(Model):
                            or r.causes!=(root.id,) or r.participants[1:]!=(root.participants[0],) for r in responses)
                     or (event.kind=='introduction_completed')!=all(r.kind=='introduction_accepted' for r in responses)):
                     raise ValueError('Знакомство без согласованных ответов')
+        from social_sim.interactions import validate_interactions
+        validate_interactions(self)
         return self

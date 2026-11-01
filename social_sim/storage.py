@@ -28,8 +28,8 @@ def load_snapshot(path: Path) -> Simulation:
     if not isinstance(raw, dict) or not isinstance(raw.get('world'), dict):
         raise ValueError('Снимок должен быть объектом с объектом world')
     version_number = raw['world'].get('schema_version')
-    if version_number != 3:
-        raise ValueError(f'Неподдерживаемая версия снимка {version_number}; требуется 3. Неявная миграция не выполняется.')
+    if version_number != 4:
+        raise ValueError(f'Неподдерживаемая версия снимка {version_number}; требуется 4. Неявная миграция не выполняется.')
     snapshot = Snapshot.model_validate(raw)
     simulation = Simulation(snapshot.world.scenario)
     simulation.world = snapshot.world

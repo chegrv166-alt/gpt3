@@ -7,7 +7,7 @@ from social_sim.cognition import bounded, perceive, remember
 from social_sim.decision import ActorView, choose, decide
 from social_sim.models import (
     ActionKind, Candidate, DecisionTrace, NPCState, Relationship, Reaction,
-    Scenario, PlanReply, SocialPlan, WorldEvent, WorldState,
+    SocialInteraction, SocialMessage, Scenario, PlanReply, SocialPlan, WorldEvent, WorldState,
 )
 
 
@@ -41,11 +41,13 @@ class Simulation:
                          self.world.tick, not self.busy(actor, self.next_free_slot()), len(self.world.events))
 
     def emit(self, kind: str, participants: tuple[str, ...], outcome: str, *, causes: tuple[str, ...] = (), trace: DecisionTrace | None = None, location: str = 'message', organizer: str | None = None,
-             context: str = 'unknown', claim: str | None = None, subject_event: str | None = None) -> WorldEvent:
+             context: str = 'unknown', claim: str | None = None, subject_event: str | None = None,
+             social_message: SocialMessage | None = None, social_response: str | None = None) -> WorldEvent:
         event = WorldEvent(id=f'e{len(self.world.events)+1:06d}', tick=self.world.tick,
                            kind=kind, participants=participants, outcome=outcome,
                            location=location, causes=causes, trace_id=trace.id if trace else None,
-                           organizer=organizer, context=context, claim=claim, subject_event=subject_event)
+                           organizer=organizer, context=context, claim=claim, subject_event=subject_event,
+                           social_message=social_message, social_response=social_response)
         self.world.events.append(event)
         for actor in participants:
             perceive(self.world, actor, event, participants[0], event.id)
@@ -60,8 +62,9 @@ class Simulation:
             for situation in state.situations.values():
                 for assessment in situation.episodes.values():
                     assessment.emotion = bounded(assessment.emotion * (0.92 + person.personality.traits['grudge_persistence'] * 0.01))
-                if situation.emotion <= 10:
+                if situation.emotion <= 10 and situation.distance_active:
                     situation.distance_active = False
+                    self.emit('distance_ended',(person.id,),'Эмоция ослабла ниже порога; доверие автоматически не восстановлено',causes=(situation.evidence[-1],))
 
     def act(self, actor: str, action: ActionKind, target: str | None = None, event_id: str | None = None, trace: DecisionTrace | None = None, *, defer_reply: bool = False) -> WorldEvent:
         if actor not in self.world.states or (target is not None and target not in self.world.states):
@@ -336,8 +339,34 @@ class Simulation:
                 if key not in self.world.relationships:self.world.relationships[key]=Relationship(source=source,target=target,liking=30,trust=30,closeness=5,origin_event=event.id)
         return event
 
+    def interact(self, actor: str, kind: str, recipient: str, subject_event: str, *, about: str | None = None,
+                 content: str | None = None, defer_reply: bool = False, trace: DecisionTrace | None = None) -> SocialInteraction:
+        from social_sim.interactions import offer, received_report
+        if actor not in self.world.states:
+            raise ValueError('Неизвестный инициатор обращения')
+        view=self.view(actor)
+        if about is None:
+            if kind in ('discontent','support_request'):
+                situation=next((s for s in view.state.situations.values() if subject_event in s.episodes),None)
+                about=situation.target if situation else ''
+            else:
+                record=received_report(view,recipient,subject_event,apology=kind=='apology')
+                about=record.social_message.about if record and record.social_message else ''
+        defaults={'discontent':'hurt_report','support_request':'hurt_report','support':'support_offer','apology':'regret_hurt'}
+        message=SocialMessage.model_validate(dict(kind=kind,subject_event=subject_event,about=about,content=content or defaults.get(kind)))
+        return offer(self,actor,recipient,message,defer_reply=defer_reply,trace=trace)
+
+    def respond_interaction(self, interaction_id: str, actor: str, response: str | None = None) -> None:
+        from social_sim.interactions import respond
+        respond(self,interaction_id,actor,response)
+
     def execute_decision(self, trace: DecisionTrace) -> WorldEvent:
         selected=trace.selected
+        if selected.social_message is not None:
+            message=selected.social_message
+            if selected.target is None:raise ValueError('Обращению нужен адресат')
+            interaction=self.interact(trace.actor,message.kind,selected.target,message.subject_event,about=message.about,content=message.content,trace=trace)
+            return next(e for e in self.world.events if e.id==interaction.offered_event)
         if selected.action=='introduce':
             return self.introduce(trace.actor,*selected.targets,trace=trace)
         if selected.action=='invite_group':
@@ -350,6 +379,8 @@ class Simulation:
         for state in self.world.states.values():
             state.location = 'school' if self.world.tick % 4 < 2 else 'home'
         if self.world.tick % 4 >= 2:
+            from social_sim.interactions import process_pending
+            process_pending(self)
             for question_id in self.world.pending_questions[:]:
                 question = next(e for e in self.world.events if e.id == question_id)
                 self.answer_question(question.participants[0], question.participants[1], question, question.causes)

@@ -24,6 +24,8 @@ def perceive(world: WorldState, actor: str, event: WorldEvent, source: str, via:
         event_id=event.id, kind=event.kind, participants=event.participants,
         source=source, acquired_tick=world.tick, method='message' if message else 'observation',
         confidence=confidence, via_event=via, organizer=event.organizer,
+        social_message=event.social_message, social_response=event.social_response,
+        reply_to=event.causes[0] if event.kind in ('social_interaction_answered','social_interaction_expired') and event.causes else None,
         context=event.context if not message else 'unknown',
     )
     if event.kind in ('question_answered', 'question_declined', 'question_unanswered'):

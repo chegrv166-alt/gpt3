@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from random import Random
 from itertools import combinations
 
-from social_sim.memory import UTILITY_GAIN, memory_signal, relevant_memories
+from social_sim.memory import UTILITY_GAIN, memory_signal, relevant_memories, retain_memories
 from social_sim.models import Candidate, DecisionTrace, NPCState, Person, Relationship, Weights, SituationAtDecision
 
 
@@ -61,7 +61,7 @@ def decide(view: ActorView, rng: Random, weights: Weights, trace_id: str) -> Dec
         target = rel.target
         hurt = state.hurt.get(target, 0)
         avoiding = state.avoiding(target)
-        memories = relevant_memories(state, target, 'exclusion', view.tick)
+        memories = tuple(retain_memories([*relevant_memories(state,target,'exclusion',view.tick),*relevant_memories(state,target,'repair_attempt',view.tick)],view.tick,5))
         signal = memory_signal(memories) * UTILITY_GAIN
         memory_ids = tuple(m.id for m in memories)
         situation = state.actionable_situation(target)
@@ -124,4 +124,6 @@ def decide(view: ActorView, rng: Random, weights: Weights, trace_id: str) -> Dec
                     'strategy':4 if 'invite' in p.strategies else 0,'effort':-4}))
     else:
         constraints.append('Групповая инициатива/знакомство: недостаточно энергии')
+    from social_sim.interactions import initiative_candidates
+    candidates.extend(initiative_candidates(view))
     return choose(view, candidates, constraints, rng, weights, trace_id)

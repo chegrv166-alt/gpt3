@@ -72,7 +72,7 @@ def test_corrupt_situation_memory_and_revision_references_rejected(tmp_path, dam
 def test_unsupported_snapshot_version_has_clear_error(tmp_path):
     path = tmp_path/'old.json'
     path.write_text(json.dumps({'world': {'schema_version': 1}, 'rng_state': []}))
-    with pytest.raises(ValueError, match='версия.*1.*3'):
+    with pytest.raises(ValueError, match='версия.*1.*4'):
         load_snapshot(path)
 
 

@@ -7,9 +7,9 @@ def metrics(world: WorldState) -> dict[str, object]:
     WorldState.model_validate(world.model_dump())
     counts = Counter(e.kind for e in world.events)
     npc_ids = {p.id for p in world.scenario.people if not p.is_player}
-    initiative_kinds = {'invite', 'ask', 'distance', 'tell', 'introduce', 'invite_group'}
+    initiative_kinds = {'invite', 'ask', 'distance', 'tell', 'introduce', 'invite_group', 'discontent', 'support_request', 'support', 'apology'}
     initiatives = Counter(t.selected.action for t in world.traces if t.selected.action in initiative_kinds)
-    responses = Counter(t.selected.action for t in world.traces if t.selected.action in ('accept', 'decline', 'clarify', 'accept_introduction', 'decline_introduction'))
+    responses = Counter(t.selected.action for t in world.traces if t.selected.action in ('accept', 'decline', 'clarify', 'accept_introduction', 'decline_introduction', 'acknowledge','disagree','defer'))
     active = {t.actor for t in world.traces if t.selected.action in initiative_kinds}
     situations = [s for state in world.states.values() for s in state.situations.values()]
     revisions = [i for state in world.states.values() for i in state.interpretations]
@@ -21,8 +21,17 @@ def metrics(world: WorldState) -> dict[str, object]:
     explained: set[str] = set()
     for event in world.events:
         if event.trace_id is not None or any(c in explained for c in event.causes):explained.add(event.id)
+    interaction_counts=Counter(x.message.kind for x in world.interactions.values())
+    answers=Counter(f'{x.message.kind}:{world.events[int(x.response_event[1:])-1].social_response or x.status}' for x in world.interactions.values() if x.response_event is not None)
     return {
-        'schema_version': 3,
+        'schema_version': 4,
+        'interactions_offered': dict(interaction_counts),
+        'interaction_answers': dict(answers),
+        'pending_interactions': sum(x.status=='pending' for x in world.interactions.values()),
+        'repair_effects': [e.model_dump() for e in world.effects],
+        'repeated_repair_effects': len([e.token for e in world.effects if e.token])-len({e.token for e in world.effects if e.token}),
+        'private_disagreements': sum(x.message.kind=='discontent' and x.response_event is not None and world.events[int(x.response_event[1:])-1].social_response=='disagree' for x in world.interactions.values()),
+        'distance_ended': counts['distance_ended'],
         'integrity_violations': 0,
         'introductions_proposed': counts['introduction_proposed'],
         'introductions_completed': counts['introduction_completed'],
@@ -52,7 +61,7 @@ def metrics(world: WorldState) -> dict[str, object]:
         'inactive_npc_fraction': len(npc_ids-active)/len(npc_ids) if npc_ids else 0,
         'explained_decision_fraction': sum(e.id in explained for e in meaningful)/len(meaningful) if meaningful else None,
         'interpretations': dict(Counter(i.kind for s in world.states.values() for i in s.interpretations)),
-        'not_implemented': ['конфликты', 'извинения и примирения', 'авторские сцены'],
+        'not_implemented': ['личные границы', 'полноценные цели', 'авторские сцены'],
     }
 
 
@@ -65,6 +74,7 @@ def explain(world: WorldState, event_id: str) -> dict[str, object]:
     trace = traces.get(event.trace_id or '')
     state = world.states[trace.actor] if trace else None
     revisions = {i.id: i for i in state.interpretations} if state else {}
+    interaction=next((x for x in world.interactions.values() if event_id in (x.offered_event,x.response_event)),None)
     return {
         'event': event.model_dump(),
         'decision': traces[event.trace_id].model_dump() if event.trace_id else None,
@@ -82,6 +92,8 @@ def explain(world: WorldState, event_id: str) -> dict[str, object]:
             {'observer': actor, **i.model_dump()} for actor, s in world.states.items()
             for i in s.interpretations if i.event_id == event_id
         ],
+        'interaction': interaction.model_dump() if interaction else None,
+        'interaction_effects': [e.model_dump() for e in world.effects if interaction and e.interaction_id==interaction.id],
         'group_context': [c.model_dump() for c in world.groups.history if event_id in c.evidence],
         'audience': 'Диагностика разработчика; не является знаниями игрока.',
     }
