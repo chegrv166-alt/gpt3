@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 TraitValue = Annotated[int, Field(strict=True, ge=0, le=5)]
 Scale = Annotated[float, Field(strict=True, ge=0, le=100, allow_inf_nan=False)]
 TRAITS = frozenset('belonging closeness autonomy recognition stability novelty initiative sociability openness directness tact conformity rejection_sensitivity humiliation_sensitivity suspiciousness impulsivity grudge_persistence reconciliation_readiness inclusion_expectation contact_expectation reciprocity_expectation loyalty_priority honesty_priority privacy_priority'.split())
-ActionKind = Literal['rest', 'invite', 'ask', 'distance', 'tell', 'accept', 'decline', 'clarify']
+ActionKind = Literal['rest', 'invite', 'ask', 'distance', 'tell', 'accept', 'decline', 'clarify', 'introduce', 'invite_group', 'accept_introduction', 'decline_introduction']
 
 
 class Model(BaseModel):
@@ -100,6 +100,7 @@ class Relationship(Model):
     tension: Scale = 0
     romantic_interest: Scale = 0
     perceived_reciprocity: Scale = 50
+    origin_event: str | None = None
     shared_meetings: Annotated[int, Field(ge=0)] = 0
 
 
@@ -118,6 +119,7 @@ class Scenario(Frozen):
     people: tuple[Person, ...]
     relationships: tuple[Relationship, ...]
     weights: Weights = Field(default_factory=Weights)
+    group_settings: GroupSettings = Field(default_factory=lambda: GroupSettings())
     meeting_context: Literal['unknown', 'no_prior_group_plan'] = 'unknown'
 
     @model_validator(mode='after')
@@ -205,6 +207,11 @@ class Reaction(Frozen):
     action: Literal['ask', 'distance']
 
 
+class EpisodeAssessment(Model):
+    confidence: Annotated[float, Field(ge=0, le=1)]
+    emotion: Scale
+
+
 class SocialSituation(Model):
     id: str
     observer: str
@@ -215,7 +222,12 @@ class SocialSituation(Model):
     current_revision: str
     updated_tick: int
     status: Literal['active', 'discussing', 'completed', 'unresolved'] = 'active'
-    emotion: Scale = 0
+    episodes: dict[str, EpisodeAssessment] = Field(default_factory=dict)
+
+    @property
+    def emotion(self) -> float:
+        return min(100, sum(e.emotion for e in self.episodes.values()))
+
     generation: Annotated[int, Field(ge=1)] = 1
     reacted_generation: Annotated[int, Field(ge=0)] = 0
     reactions: list[Reaction] = Field(default_factory=list)
@@ -251,20 +263,70 @@ class NPCState(Model):
 
 
 
+class PlanReply(Model):
+    status: Literal['pending', 'accepted', 'declined', 'expired'] = 'pending'
+    history: list[str] = Field(default_factory=list)
+
+
 class SocialPlan(Model):
     id: str
     organizer: str
-    invitee: str
+    replies: dict[str, PlanReply]
     tick: Annotated[int, Field(ge=0)]
     location: str = 'park'
     status: Literal['pending', 'accepted', 'declined', 'completed', 'cancelled'] = 'pending'
     history: list[str] = Field(default_factory=list)
+
+    @property
+    def invitee(self) -> str:
+        if len(self.replies) != 1:
+            raise ValueError('Групповому плану нужен явный invitee')
+        return next(iter(self.replies))
+
+    @property
+    def accepted(self) -> tuple[str, ...]:
+        return tuple(sorted(p for p,r in self.replies.items() if r.status == 'accepted'))
+
+
+class GroupSettings(Frozen):
+    closeness: Scale = 40
+    meetings: Annotated[int, Field(ge=1)] = 2
+    window_slots: Annotated[int, Field(ge=4)] = 32
+    confirmations: Annotated[int, Field(ge=1)] = 2
+
+
+class GroupRecord(Model):
+    id: str
+    members: tuple[str, ...]
+    active: bool = True
+    missing_checks: Annotated[int, Field(ge=0)] = 0
+    proposed_members: tuple[str, ...] = ()
+    confirmations: Annotated[int, Field(ge=0)] = 0
+
+
+class GroupChange(Frozen):
+    tick: int
+    group_id: str
+    kind: Literal['formed', 'changed', 'inactive']
+    members: tuple[str, ...]
+    previous_members: tuple[str, ...]
+    evidence: tuple[str, ...]
+    reason: str
+
+
+class GroupTracker(Model):
+    groups: list[GroupRecord] = Field(default_factory=list)
+    history: list[GroupChange] = Field(default_factory=list)
+    candidates: dict[str, int] = Field(default_factory=dict)
+    last_tick: int = -1
+
 
 
 class Candidate(Frozen):
     action: ActionKind
     target: str | None = None
     event_id: str | None = None
+    targets: tuple[str, ...] = ()
     situation_id: str | None = None
     memory_ids: tuple[str, ...] = ()
     components: dict[str, float]
@@ -303,7 +365,7 @@ class DecisionTrace(Frozen):
 
 
 class WorldState(Model):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     tick: Annotated[int, Field(ge=0)] = 0
     scenario: Scenario
     states: dict[str, NPCState]
@@ -311,6 +373,7 @@ class WorldState(Model):
     plans: list[SocialPlan] = Field(default_factory=list)
     events: list[WorldEvent] = Field(default_factory=list)
     traces: list[DecisionTrace] = Field(default_factory=list)
+    groups: GroupTracker = Field(default_factory=GroupTracker)
     pending_questions: list[str] = Field(default_factory=list)
 
     @model_validator(mode='after')
@@ -394,7 +457,8 @@ class WorldState(Model):
                     or not set(situation.related) <= ids or situation.target not in situation.related
                     or current is None or current.situation_id != key or current.target != situation.target
                     or current.evidence != situation.evidence or situation.updated_tick != current.tick
-                    or situation.reacted_generation > situation.generation):
+                    or situation.reacted_generation > situation.generation
+                    or not situation.episodes or not set(situation.episodes) <= set(situation.evidence)):
                     raise ValueError('Некорректная социальная ситуация')
                 generations: set[int] = set()
                 for reaction in situation.reactions:
@@ -431,6 +495,8 @@ class WorldState(Model):
                     if snapshot.revision_id not in t.interpretation_ids or revisions[snapshot.revision_id].situation_id != snapshot.id:
                         raise ValueError('Некорректный исторический снимок ситуации')
                 for candidate in t.candidates:
+                    if not set(candidate.targets) <= ids or actor in candidate.targets or len(set(candidate.targets)) != len(candidate.targets):
+                        raise ValueError('Некорректные адресаты действия')
                     if candidate.target is not None and (candidate.target not in ids or candidate.target == actor):
                         raise ValueError('Неизвестный адресат trace')
                     if candidate.event_id is not None and candidate.event_id not in t.known_events:
@@ -454,42 +520,107 @@ class WorldState(Model):
         if any(t.actor not in ids for t in self.traces):
             raise ValueError('Неизвестный автор trace')
         occupied: set[tuple[int, str]] = set()
-        for index, p in enumerate(self.plans, 1):
-            if p.id != f'p{index:06d}' or p.organizer not in ids or p.invitee not in ids or p.organizer == p.invitee or p.tick % 4 < 2 or not set(p.history) <= event_ids:
-                raise ValueError('Некорректный план')
-            if not p.history:
-                raise ValueError('План без приглашения')
-            invitation = events_by_id[p.history[0]]
-            if invitation.kind != 'invitation_sent' or invitation.participants != (p.organizer, p.invitee) or invitation.tick >= p.tick:
-                raise ValueError('План не соответствует приглашению')
-            if p.status in ('pending', 'accepted') and p.tick < self.tick:
+        for index, p in enumerate(self.plans,1):
+            if (p.id != f'p{index:06d}' or p.organizer not in ids or not p.replies or len(p.replies)>4
+                or not set(p.replies) <= ids or p.organizer in p.replies or p.tick % 4 < 2
+                or not p.history or len(set(p.history)) != len(p.history) or not set(p.history) <= event_ids):
+                raise ValueError('Некорректный групповой план')
+            if p.status in ('pending','accepted') and p.tick < self.tick:
                 raise ValueError('Просроченное обязательство')
-            last_kind = {'pending': 'invitation_sent', 'accepted': 'invitation_accepted', 'declined': 'invitation_declined', 'completed': 'meeting_occurred', 'cancelled': 'invitation_expired'}[p.status]
-            if events_by_id[p.history[-1]].kind != last_kind:
-                raise ValueError('Статус плана не соответствует истории')
-            history = [events_by_id[e] for e in p.history]
-            expected = {
-                'pending': ['invitation_sent'],
-                'accepted': ['invitation_sent', 'invitation_accepted'],
-                'declined': ['invitation_sent', 'invitation_declined'],
-                'completed': ['invitation_sent', 'invitation_accepted', 'meeting_occurred'],
-                'cancelled': ['invitation_sent', 'invitation_expired'],
-            }[p.status]
-            if [e.kind for e in history] != expected or len(set(p.history)) != len(p.history):
-                raise ValueError('Невозможная последовательность плана')
-            for position, event in enumerate(history):
-                if set(event.participants) != {p.organizer, p.invitee} or len(event.participants) != 2:
-                    raise ValueError('Участники плана не совпадают')
-                if position and (event.tick < history[position-1].tick or event.tick > p.tick):
-                    raise ValueError('Неверное время перехода плана')
-                if position and event.causes != tuple(p.history[:position]):
-                    raise ValueError('Неверные причины перехода плана')
-            if p.status in ('completed', 'cancelled') and (history[-1].tick != p.tick or p.tick > self.tick):
-                raise ValueError('Время исполнения плана не совпадает с событием')
-            if p.status in ('pending', 'accepted', 'completed'):
-                participants = [p.organizer] + ([p.invitee] if p.status != 'pending' else [])
-                for actor in participants:
-                    if (p.tick, actor) in occupied:
-                        raise ValueError('Несовместимые обязательства')
-                    occupied.add((p.tick, actor))
+            personal_events: set[str] = set()
+            for invitee, reply in p.replies.items():
+                expected = ['invitation_sent'] + ([] if reply.status=='pending' else
+                    [{'accepted':'invitation_accepted','declined':'invitation_declined','expired':'invitation_expired'}[reply.status]])
+                if not reply.history or not set(reply.history)<=set(p.history):
+                    raise ValueError('Ответ без приглашения')
+                history=[events_by_id[e] for e in reply.history]
+                if [e.kind for e in history] != expected or history[0].participants != (p.organizer,invitee):
+                    raise ValueError('Неверная история личного приглашения')
+                if history[0].tick >= p.tick:
+                    raise ValueError('Приглашение после встречи')
+                if len(history)>1:
+                    response=history[1]
+                    if (set(response.participants)!={p.organizer,invitee} or response.causes != (history[0].id,)
+                        or not history[0].tick<=response.tick<=p.tick):
+                        raise ValueError('Некорректный личный ответ')
+                personal_events.update(reply.history)
+            history=[events_by_id[e] for e in p.history]
+            if any(history[n].tick>history[n+1].tick for n in range(len(history)-1)):
+                raise ValueError('Неверный порядок истории плана')
+            extra=[e for e in history if e.id not in personal_events]
+            roots=[e for e in extra if e.kind=='group_invitation_proposed']
+            if len(p.replies)>1:
+                if len(roots)!=1 or roots[0].id!=p.history[0] or roots[0].participants!=(p.organizer,):
+                    raise ValueError('Нет корня группового плана')
+                if any(events_by_id[r.history[0]].causes!=(roots[0].id,) for r in p.replies.values()):
+                    raise ValueError('Приглашения не связаны с групповым планом')
+            elif roots:
+                raise ValueError('Лишний корень парного плана')
+            final=[e for e in extra if e.kind in ('meeting_occurred','plan_cancelled')]
+            if len(extra)!=len(roots)+len(final):
+                raise ValueError('Постороннее событие в плане')
+            if p.status in ('completed','cancelled'):
+                if (len(final)!=1 or final[0].id!=p.history[-1] or final[0].tick!=p.tick or p.tick>self.tick
+                    or any(r.status=='pending' for r in p.replies.values()) or final[0].causes!=tuple(p.history[:-1])):
+                    raise ValueError('Неверное исполнение плана')
+                members={p.organizer,*p.accepted}
+                if p.status=='completed' and (not p.accepted or final[0].kind!='meeting_occurred' or set(final[0].participants)!=members or final[0].organizer!=p.organizer):
+                    raise ValueError('Неверные участники встречи')
+                if p.status=='cancelled' and (p.accepted or final[0].kind!='plan_cancelled'):
+                    raise ValueError('Неверная отмена плана')
+            elif final:
+                raise ValueError('Встреча не отражена в статусе плана')
+            expected_status='accepted' if p.accepted else 'pending' if any(r.status=='pending' for r in p.replies.values()) else 'declined'
+            if p.status not in ('completed','cancelled') and p.status!=expected_status:
+                raise ValueError('Статус не соответствует ответам')
+            if p.status in ('pending','accepted','completed'):
+                for person in (p.organizer,*p.accepted):
+                    if (p.tick,person) in occupied:raise ValueError('Несовместимые обязательства')
+                    occupied.add((p.tick,person))
+        for key,rel in self.relationships.items():
+            if rel.origin_event is not None:
+                event=events_by_id.get(rel.origin_event)
+                if event is None or event.kind not in ('introduction_completed','meeting_occurred') or not {rel.source,rel.target}<=set(event.participants):
+                    raise ValueError('Неизвестная причина знакомства')
+        group_ids={g.id for g in self.groups.groups}
+        if len(group_ids)!=len(self.groups.groups) or not -1<=self.groups.last_tick<=self.tick:
+            raise ValueError('Неверные ID или время детектора компаний')
+        def valid_members(members: tuple[str,...]) -> bool:
+            return len(members)>=3 and tuple(sorted(set(members)))==members and set(members)<=ids
+        for n,group in enumerate(self.groups.groups,1):
+            if group.id!=f'g{n:04d}' or not valid_members(group.members) or group.proposed_members and not valid_members(group.proposed_members):
+                raise ValueError('Некорректная компания')
+            changes=[c for c in self.groups.history if c.group_id==group.id]
+            if not changes or changes[0].kind!='formed' or changes[-1].members!=group.members or group.active==(changes[-1].kind=='inactive'):
+                raise ValueError('Компания не соответствует истории')
+        previous_tick=-1
+        for change in self.groups.history:
+            if (change.group_id not in group_ids or not previous_tick<=change.tick<=self.groups.last_tick
+                or not set(change.evidence)<=event_ids or not valid_members(change.members)
+                or change.previous_members and not valid_members(change.previous_members)
+                or any(events_by_id[e].kind!='meeting_occurred' for e in change.evidence)):
+                raise ValueError('Неверная история компаний')
+            previous_tick=change.tick
+        for key,count in self.groups.candidates.items():
+            if not valid_members(tuple(key.split(':'))) or not 1<=count<self.scenario.group_settings.confirmations:
+                raise ValueError('Неверный кандидат компании')
+        for event in self.events:
+            if event.kind=='introduction_proposed':
+                if len(event.participants)!=3 or len(set(event.participants))!=3:
+                    raise ValueError('Неверные участники знакомства')
+            elif event.kind in ('introduction_completed','introduction_declined','introduction_already_known'):
+                if not event.causes:
+                    raise ValueError('Знакомство без предложения')
+                root=events_by_id[event.causes[0]]
+                if root.kind!='introduction_proposed' or root.participants!=event.participants:
+                    raise ValueError('Знакомство не соответствует предложению')
+                if event.kind=='introduction_already_known':
+                    if len(event.causes)!=1:raise ValueError('Лишние ответы при существующем знакомстве')
+                    continue
+                responses=[events_by_id[e] for e in event.causes[1:]]
+                if (len(responses)!=2 or {r.participants[0] for r in responses}!=set(root.participants[1:])
+                    or any(r.kind not in ('introduction_accepted','introduction_rejected','introduction_unanswered')
+                           or r.causes!=(root.id,) or r.participants[1:]!=(root.participants[0],) for r in responses)
+                    or (event.kind=='introduction_completed')!=all(r.kind=='introduction_accepted' for r in responses)):
+                    raise ValueError('Знакомство без согласованных ответов')
         return self

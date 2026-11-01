@@ -170,7 +170,7 @@ def test_snapshot_rejects_broken_reference_and_schema(tmp_path):
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError):
         load_snapshot(path)
-    data['world']['schema_version'] = 2
+    data['world']['schema_version'] = 3
     data['world']['events'][0]['participants'] = ['ghost']
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError):

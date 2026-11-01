@@ -25,9 +25,11 @@ def save_snapshot(simulation: Simulation, path: Path) -> None:
 
 def load_snapshot(path: Path) -> Simulation:
     raw = json.loads(path.read_text(encoding='utf-8'))
-    version_number = raw.get('world', {}).get('schema_version') if isinstance(raw, dict) else None
-    if version_number != 2:
-        raise ValueError(f'Неподдерживаемая версия снимка {version_number}; требуется 2. Неявная миграция не выполняется.')
+    if not isinstance(raw, dict) or not isinstance(raw.get('world'), dict):
+        raise ValueError('Снимок должен быть объектом с объектом world')
+    version_number = raw['world'].get('schema_version')
+    if version_number != 3:
+        raise ValueError(f'Неподдерживаемая версия снимка {version_number}; требуется 3. Неявная миграция не выполняется.')
     snapshot = Snapshot.model_validate(raw)
     simulation = Simulation(snapshot.world.scenario)
     simulation.world = snapshot.world

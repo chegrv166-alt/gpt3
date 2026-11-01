@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from random import Random
+from itertools import combinations
 
 from social_sim.memory import UTILITY_GAIN, memory_signal, relevant_memories
 from social_sim.models import Candidate, DecisionTrace, NPCState, Person, Relationship, Weights, SituationAtDecision
@@ -103,4 +104,24 @@ def decide(view: ActorView, rng: Random, weights: Weights, trace_id: str) -> Dec
                 constraints.append(f'tell:{target}: нет непереданного наблюдённого события')
         else:
             constraints.append(f'tell:{target}: дистанция, энергия или порог открытости')
+    contacts=sorted((r for r in view.relationships if not state.avoiding(r.target)),key=lambda r:r.target)[:6]
+    if state.energy>=20:
+        for pair in combinations(contacts,2):
+            targets=tuple(r.target for r in pair)
+            known_pair=any(k.kind in ('introduction_completed','introduction_already_known') and k.participants[0]==view.person.id
+                           and set(k.participants[1:])==set(targets) for k in state.knowledge.values())
+            key='introduce:'+':'.join(targets)
+            if not known_pair and view.tick-state.cooldowns.get(key,-1000)>=32:
+                candidates.append(Candidate(action='introduce',targets=targets,components={
+                    'need':state.loneliness/15,'personality':t['initiative']+t['sociability']+t['novelty']-t['autonomy'],
+                    'goal':connect_goal*2-autonomy_goal*8,'effort':-3}))
+            groupkey='invite_group:'+':'.join(targets)
+            if view.can_plan and view.tick-state.cooldowns.get(groupkey,-1000)>=8 and all(view.tick-state.cooldowns.get(f'invite:{p}',-1000)>=8 for p in targets):
+                candidates.append(Candidate(action='invite_group',targets=targets,components={
+                    'need':state.loneliness/10,'personality':t['sociability']*1.5-t['autonomy']/2,
+                    'goal':connect_goal*3-autonomy_goal*4,'relationship':sum(r.liking+r.closeness-r.tension for r in pair)/80,
+                    'emotion':-sum(state.hurt.get(r.target,0) for r in pair)/8,
+                    'strategy':4 if 'invite' in p.strategies else 0,'effort':-4}))
+    else:
+        constraints.append('Групповая инициатива/знакомство: недостаточно энергии')
     return choose(view, candidates, constraints, rng, weights, trace_id)

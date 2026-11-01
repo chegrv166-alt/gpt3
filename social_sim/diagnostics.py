@@ -4,11 +4,12 @@ from social_sim.models import WorldState
 
 
 def metrics(world: WorldState) -> dict[str, object]:
+    WorldState.model_validate(world.model_dump())
     counts = Counter(e.kind for e in world.events)
     npc_ids = {p.id for p in world.scenario.people if not p.is_player}
-    initiative_kinds = {'invite', 'ask', 'distance', 'tell'}
+    initiative_kinds = {'invite', 'ask', 'distance', 'tell', 'introduce', 'invite_group'}
     initiatives = Counter(t.selected.action for t in world.traces if t.selected.action in initiative_kinds)
-    responses = Counter(t.selected.action for t in world.traces if t.selected.action in ('accept', 'decline', 'clarify'))
+    responses = Counter(t.selected.action for t in world.traces if t.selected.action in ('accept', 'decline', 'clarify', 'accept_introduction', 'decline_introduction'))
     active = {t.actor for t in world.traces if t.selected.action in initiative_kinds}
     situations = [s for state in world.states.values() for s in state.situations.values()]
     revisions = [i for state in world.states.values() for i in state.interpretations]
@@ -17,8 +18,23 @@ def metrics(world: WorldState) -> dict[str, object]:
     initial = {f'{r.source}:{r.target}': r for r in world.scenario.relationships}
     changed = sum(key not in initial or rel != initial[key] for key, rel in world.relationships.items())
     meaningful = [e for e in world.events if e.kind not in ('rested', 'meeting_occurred', 'invitation_expired', 'question_unanswered')]
+    explained: set[str] = set()
+    for event in world.events:
+        if event.trace_id is not None or any(c in explained for c in event.causes):explained.add(event.id)
     return {
-        'schema_version': 2, 'elapsed_slots': world.tick, 'event_counts': dict(sorted(counts.items())),
+        'schema_version': 3,
+        'integrity_violations': 0,
+        'introductions_proposed': counts['introduction_proposed'],
+        'introductions_completed': counts['introduction_completed'],
+        'introductions_declined': counts['introduction_declined'],
+        'new_relationship_causes': [{'source':r.source,'target':r.target,'event_id':r.origin_event} for key,r in world.relationships.items() if key not in initial],
+        'pair_plans': sum(len(p.replies)==1 for p in world.plans),
+        'group_plans': sum(len(p.replies)>1 for p in world.plans),
+        'meeting_sizes': dict(Counter(len(e.participants) for e in world.events if e.kind=='meeting_occurred')),
+        'active_groups': [g.model_dump() for g in world.groups.groups if g.active],
+        'group_changes': [c.model_dump() for c in world.groups.history],
+        'active_distances': sum(s.distance_active for s in situations),
+        'pending_questions': len(world.pending_questions), 'elapsed_slots': world.tick, 'event_counts': dict(sorted(counts.items())),
         'social_initiatives': sum(initiatives.values()), 'invitation_initiatives': counts['invitation_sent'],
         'initiatives_by_action': dict(initiatives), 'responses_by_action': dict(responses),
         'social_situations': len(situations), 'situation_reactions': len(reactions),
@@ -34,9 +50,9 @@ def metrics(world: WorldState) -> dict[str, object]:
         'new_directed_acquaintances': len(set(world.relationships)-set(initial)),
         'social_action_types': sorted({t.selected.action for t in world.traces if t.selected.action != 'rest'}),
         'inactive_npc_fraction': len(npc_ids-active)/len(npc_ids) if npc_ids else 0,
-        'explained_decision_fraction': sum(e.trace_id is not None for e in meaningful)/len(meaningful) if meaningful else None,
+        'explained_decision_fraction': sum(e.id in explained for e in meaningful)/len(meaningful) if meaningful else None,
         'interpretations': dict(Counter(i.kind for s in world.states.values() for i in s.interpretations)),
-        'not_implemented': ['конфликты', 'извинения и примирения', 'динамические компании', 'авторские сцены'],
+        'not_implemented': ['конфликты', 'извинения и примирения', 'авторские сцены'],
     }
 
 
@@ -66,5 +82,6 @@ def explain(world: WorldState, event_id: str) -> dict[str, object]:
             {'observer': actor, **i.model_dump()} for actor, s in world.states.items()
             for i in s.interpretations if i.event_id == event_id
         ],
+        'group_context': [c.model_dump() for c in world.groups.history if event_id in c.evidence],
         'audience': 'Диагностика разработчика; не является знаниями игрока.',
     }

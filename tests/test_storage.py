@@ -72,7 +72,7 @@ def test_corrupt_situation_memory_and_revision_references_rejected(tmp_path, dam
 def test_unsupported_snapshot_version_has_clear_error(tmp_path):
     path = tmp_path/'old.json'
     path.write_text(json.dumps({'world': {'schema_version': 1}, 'rng_state': []}))
-    with pytest.raises(ValueError, match='версия.*1.*2'):
+    with pytest.raises(ValueError, match='версия.*1.*3'):
         load_snapshot(path)
 
 
@@ -114,3 +114,20 @@ def test_discussing_situation_requires_pending_question():
     next(iter(raw['states']['n3']['situations'].values()))['status'] = 'discussing'
     with pytest.raises(ValueError):
         WorldState.model_validate(raw)
+
+
+def test_combined_group_introduction_and_pending_question_roundtrip(tmp_path):
+    from pathlib import Path
+    from social_sim.authoring import load_scenario
+    from social_sim.engine import Simulation
+    s=Simulation(load_scenario(Path('data/fixtures/school.yaml')))
+    episode(s)
+    s.act('n3','ask','n1',defer_reply=True)
+    plan=s.invite_group('n4',['n1','n9','player'])
+    s.respond(plan.id,True,invitee='n9')
+    s.introduce('n5','n6','n9',answers={'n6':True,'n9':True})
+    assert 'n6:n9' in s.world.relationships and s.world.pending_questions
+    assert plan.replies['n1'].status=='pending'
+    save_snapshot(s,tmp_path/'combined.json');b=load_snapshot(tmp_path/'combined.json')
+    for x in(s,b):x.run_days(5)
+    assert s.world==b.world and s.rng.getstate()==b.rng.getstate()

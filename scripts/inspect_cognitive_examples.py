@@ -62,7 +62,7 @@ def main() -> None:
         if name == 'refusal':
             sim.world.states['n1'].energy = 0
         trace = decide(sim.view('n3'), sim.rng, sim.world.scenario.weights, f't{len(sim.world.traces)+1:06d}')
-        event = sim.act('n3', trace.selected.action, trace.selected.target, trace.selected.event_id, trace)
+        event = sim.execute_decision(trace)
         if name == 'repeated':
             episode(sim,10)
         export_run(sim, directory/name)

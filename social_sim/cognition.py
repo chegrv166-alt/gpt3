@@ -1,5 +1,5 @@
 from social_sim.memory import APPRAISAL_GAIN, memory_signal, relevant_memories, retain_memories
-from social_sim.models import Interpretation, KnowledgeRecord, Memory, SocialSituation, WorldEvent, WorldState
+from social_sim.models import EpisodeAssessment, Interpretation, KnowledgeRecord, Memory, SocialSituation, WorldEvent, WorldState
 
 
 def bounded(value: float) -> float:
@@ -33,7 +33,7 @@ def perceive(world: WorldState, actor: str, event: WorldEvent, source: str, via:
         return
     known = [world.relationships[f'{actor}:{p}'] for p in event.participants if f'{actor}:{p}' in world.relationships]
     eligible = [r for r in known if r.closeness >= 30 and r.liking >= 30 or relevant_memories(state, r.target, 'exclusion', world.tick)]
-    if len(known) != len(event.participants) or not eligible:
+    if not eligible:
         return
     # Explicit organizer, otherwise strongest expectation; never tuple position.
     rel = next((r for r in eligible if r.target == event.organizer), None)
@@ -47,6 +47,8 @@ def perceive(world: WorldState, actor: str, event: WorldEvent, source: str, via:
     strength = max((b.strength for b in beliefs), default=0)
     expectation = (traits['inclusion_expectation'] + traits['rejection_sensitivity'] + traits['suspiciousness']) / 15
     concern = round(max(0, min(0.95, confidence * strength * expectation * (0.5 + rel.closeness / 200) + memory_effect)), 6)
+    prior_situation=state.situations.get(f's:{actor}:{target}:exclusion')
+    case_confidence=max(concern,max((e.confidence for e in prior_situation.episodes.values()),default=0)) if prior_situation else concern
     excluded = concern >= 0.3
     sid = f's:{actor}:{target}:exclusion'
     previous = state.situations.get(sid)
@@ -57,16 +59,18 @@ def perceive(world: WorldState, actor: str, event: WorldEvent, source: str, via:
         id=f'i:{actor}:{len(state.interpretations)+1}', situation_id=sid, tick=world.tick,
         evidence=evidence, memory_ids=tuple(m.id for m in memories), used_memories=memories, memory_effect=memory_effect,
         emotion_after=emotion, trust_delta=-impact/2, tension_delta=impact,
-        event_id=event.id, kind='excluded' if excluded else 'neutral', target=target,
-        confidence=concern, belief_ids=tuple(b.id for b in beliefs),
+        event_id=event.id, kind='excluded' if case_confidence>=0.3 else 'neutral', target=target,
+        confidence=case_confidence, belief_ids=tuple(b.id for b in beliefs),
         reason='Ожидание приглашения: близость или прошлый опыт; отдельная встреча допускает исключение, но не доказывает умысел.',
     )
     state.interpretations.append(revision)
     state.situations[sid] = SocialSituation(
         id=sid, observer=actor, target=target, related=tuple(sorted(event.participants)),
         expectation='Ожидание приглашения от близкого знакомого', evidence=evidence,
-        current_revision=revision.id, updated_tick=world.tick, emotion=emotion,
-        status='active' if excluded else 'completed', generation=previous.generation+1 if previous else 1,
+        current_revision=revision.id, updated_tick=world.tick,
+        episodes={**(previous.episodes if previous else {}), event.id: EpisodeAssessment(confidence=concern, emotion=concern*55 if excluded else 0)},
+        distance_active=previous.distance_active if previous else False,
+        status='discussing' if previous and previous.status == 'discussing' else 'active' if case_confidence>=0.3 else 'completed', generation=previous.generation+1 if previous else 1,
         reacted_generation=previous.reacted_generation if previous else 0,
         reactions=previous.reactions[:] if previous else [], processed_claims=previous.processed_claims if previous else (),
     )
@@ -87,15 +91,20 @@ def revise_from_answer(world: WorldState, actor: str, event: WorldEvent) -> None
     trust = rel.trust / 100 if rel else 0
     claim_key = f'{event.subject_event}:{event.claim}'
     relevant = event.claim == 'no_prior_group_plan' and claim_key not in situation.processed_claims
-    confidence = round(old.confidence * (1 - 0.6*trust), 6) if relevant else old.confidence
-    relief = situation.emotion * 0.35*trust if relevant else 0
-    situation.emotion = bounded(situation.emotion - relief)
+    assessment = situation.episodes.get(event.subject_event or '')
+    if assessment is None:
+        return
+    old_episode_confidence = assessment.confidence
+    if relevant:
+        assessment.confidence = round(assessment.confidence * (1-0.6*trust),6)
+        assessment.emotion = bounded(assessment.emotion*(1-0.35*trust))
+    confidence = max(e.confidence for e in situation.episodes.values())
     situation.evidence = (*situation.evidence, event.id)
     situation.updated_tick = world.tick
     situation.processed_claims = tuple(sorted(set((*situation.processed_claims, claim_key))))
     # Relief is partial and applies only to the relationship under discussion.
     relationship = world.relationships[f'{actor}:{situation.target}']
-    gain = (old.confidence-confidence)*2
+    gain = (old_episode_confidence-assessment.confidence)*2
     relationship.trust = bounded(relationship.trust + gain)
     relationship.tension = bounded(relationship.tension - gain)
     revision = Interpretation(
@@ -108,7 +117,9 @@ def revise_from_answer(world: WorldState, actor: str, event: WorldEvent) -> None
     )
     state.interpretations.append(revision)
     situation.current_revision = revision.id
-    situation.status = 'completed' if confidence < 0.3 else 'unresolved'
+    answered_question = event.causes[0] if event.causes else None
+    outstanding = any(q != answered_question and any(r.event_id == q for r in situation.reactions) for q in world.pending_questions)
+    situation.status = 'discussing' if outstanding else 'completed' if confidence < 0.3 else 'unresolved'
     if situation.status == 'completed':
         situation.distance_active = False
     if relevant:
