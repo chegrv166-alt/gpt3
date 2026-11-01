@@ -1,0 +1,604 @@
+schema_version: 1
+description: 'Синтетический школьный сценарий: игрок и девять NPC, исходные знакомства
+  не закрепляют состав компании.'
+people:
+- id: player
+  name: Тестовый участник player
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: true
+  personality:
+    traits:
+      belonging: 5
+      closeness: 5
+      autonomy: 2
+      recognition: 2
+      stability: 5
+      novelty: 2
+      initiative: 1
+      sociability: 2
+      openness: 1
+      directness: 2
+      tact: 4
+      conformity: 3
+      rejection_sensitivity: 5
+      humiliation_sensitivity: 3
+      suspiciousness: 2
+      impulsivity: 2
+      grudge_persistence: 3
+      reconciliation_readiness: 4
+      inclusion_expectation: 5
+      contact_expectation: 4
+      reciprocity_expectation: 4
+      loyalty_priority: 5
+      honesty_priority: 4
+      privacy_priority: 3
+    beliefs: []
+    strategies: []
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n1
+  name: Тестовый участник n1
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 4
+      closeness: 3
+      autonomy: 2
+      recognition: 3
+      stability: 3
+      novelty: 4
+      initiative: 5
+      sociability: 5
+      openness: 4
+      directness: 4
+      tact: 4
+      conformity: 2
+      rejection_sensitivity: 2
+      humiliation_sensitivity: 2
+      suspiciousness: 1
+      impulsivity: 3
+      grudge_persistence: 1
+      reconciliation_readiness: 5
+      inclusion_expectation: 3
+      contact_expectation: 3
+      reciprocity_expectation: 3
+      loyalty_priority: 4
+      honesty_priority: 4
+      privacy_priority: 2
+    beliefs: []
+    strategies:
+    - invite
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n2
+  name: Тестовый участник n2
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 3
+      closeness: 3
+      autonomy: 3
+      recognition: 2
+      stability: 3
+      novelty: 4
+      initiative: 4
+      sociability: 4
+      openness: 4
+      directness: 4
+      tact: 3
+      conformity: 2
+      rejection_sensitivity: 1
+      humiliation_sensitivity: 2
+      suspiciousness: 1
+      impulsivity: 3
+      grudge_persistence: 1
+      reconciliation_readiness: 4
+      inclusion_expectation: 2
+      contact_expectation: 2
+      reciprocity_expectation: 3
+      loyalty_priority: 3
+      honesty_priority: 3
+      privacy_priority: 3
+    beliefs: []
+    strategies:
+    - ask
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n3
+  name: Тестовый участник n3
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 5
+      closeness: 5
+      autonomy: 2
+      recognition: 3
+      stability: 5
+      novelty: 1
+      initiative: 2
+      sociability: 3
+      openness: 2
+      directness: 1
+      tact: 3
+      conformity: 4
+      rejection_sensitivity: 5
+      humiliation_sensitivity: 4
+      suspiciousness: 5
+      impulsivity: 2
+      grudge_persistence: 5
+      reconciliation_readiness: 1
+      inclusion_expectation: 5
+      contact_expectation: 4
+      reciprocity_expectation: 5
+      loyalty_priority: 5
+      honesty_priority: 5
+      privacy_priority: 4
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 1
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - distance
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n4
+  name: Тестовый участник n4
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 4
+      closeness: 4
+      autonomy: 2
+      recognition: 3
+      stability: 3
+      novelty: 3
+      initiative: 4
+      sociability: 4
+      openness: 4
+      directness: 5
+      tact: 3
+      conformity: 2
+      rejection_sensitivity: 4
+      humiliation_sensitivity: 3
+      suspiciousness: 3
+      impulsivity: 3
+      grudge_persistence: 2
+      reconciliation_readiness: 5
+      inclusion_expectation: 5
+      contact_expectation: 3
+      reciprocity_expectation: 4
+      loyalty_priority: 4
+      honesty_priority: 5
+      privacy_priority: 3
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 0.85
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - ask
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n5
+  name: Тестовый участник n5
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 3
+      closeness: 2
+      autonomy: 4
+      recognition: 3
+      stability: 2
+      novelty: 5
+      initiative: 4
+      sociability: 4
+      openness: 3
+      directness: 4
+      tact: 2
+      conformity: 1
+      rejection_sensitivity: 1
+      humiliation_sensitivity: 1
+      suspiciousness: 1
+      impulsivity: 4
+      grudge_persistence: 1
+      reconciliation_readiness: 4
+      inclusion_expectation: 1
+      contact_expectation: 1
+      reciprocity_expectation: 2
+      loyalty_priority: 2
+      honesty_priority: 4
+      privacy_priority: 4
+    beliefs: []
+    strategies:
+    - invite
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n6
+  name: Тестовый участник n6
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 2
+      closeness: 4
+      autonomy: 5
+      recognition: 1
+      stability: 4
+      novelty: 2
+      initiative: 1
+      sociability: 1
+      openness: 2
+      directness: 3
+      tact: 4
+      conformity: 1
+      rejection_sensitivity: 3
+      humiliation_sensitivity: 3
+      suspiciousness: 2
+      impulsivity: 1
+      grudge_persistence: 3
+      reconciliation_readiness: 3
+      inclusion_expectation: 2
+      contact_expectation: 1
+      reciprocity_expectation: 3
+      loyalty_priority: 4
+      honesty_priority: 4
+      privacy_priority: 5
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 0.4
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - distance
+    goals:
+    - kind: preserve_autonomy
+      priority: 0.8
+- id: n7
+  name: Тестовый участник n7
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 4
+      closeness: 3
+      autonomy: 2
+      recognition: 4
+      stability: 2
+      novelty: 4
+      initiative: 4
+      sociability: 5
+      openness: 5
+      directness: 3
+      tact: 4
+      conformity: 4
+      rejection_sensitivity: 2
+      humiliation_sensitivity: 2
+      suspiciousness: 2
+      impulsivity: 4
+      grudge_persistence: 2
+      reconciliation_readiness: 4
+      inclusion_expectation: 3
+      contact_expectation: 4
+      reciprocity_expectation: 3
+      loyalty_priority: 3
+      honesty_priority: 3
+      privacy_priority: 2
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 0.4
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - invite
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n8
+  name: Тестовый участник n8
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 2
+      closeness: 2
+      autonomy: 5
+      recognition: 2
+      stability: 4
+      novelty: 1
+      initiative: 1
+      sociability: 1
+      openness: 1
+      directness: 4
+      tact: 2
+      conformity: 1
+      rejection_sensitivity: 2
+      humiliation_sensitivity: 2
+      suspiciousness: 3
+      impulsivity: 1
+      grudge_persistence: 4
+      reconciliation_readiness: 2
+      inclusion_expectation: 2
+      contact_expectation: 1
+      reciprocity_expectation: 2
+      loyalty_priority: 3
+      honesty_priority: 4
+      privacy_priority: 5
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 0.5
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - distance
+    goals:
+    - kind: preserve_autonomy
+      priority: 0.8
+- id: n9
+  name: Тестовый участник n9
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 4
+      closeness: 4
+      autonomy: 3
+      recognition: 2
+      stability: 3
+      novelty: 3
+      initiative: 3
+      sociability: 3
+      openness: 4
+      directness: 5
+      tact: 5
+      conformity: 2
+      rejection_sensitivity: 3
+      humiliation_sensitivity: 2
+      suspiciousness: 1
+      impulsivity: 2
+      grudge_persistence: 1
+      reconciliation_readiness: 5
+      inclusion_expectation: 4
+      contact_expectation: 3
+      reciprocity_expectation: 4
+      loyalty_priority: 4
+      honesty_priority: 5
+      privacy_priority: 3
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 0.7
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - ask
+    goals:
+    - kind: connect
+      priority: 0.8
+relationships:
+- source: player
+  target: n1
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n1
+  target: player
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: player
+  target: n2
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n2
+  target: player
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: player
+  target: n3
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n3
+  target: player
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: player
+  target: n4
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n4
+  target: player
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n1
+  target: n2
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n2
+  target: n1
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n1
+  target: n3
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n3
+  target: n1
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n1
+  target: n4
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n4
+  target: n1
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n2
+  target: n3
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n3
+  target: n2
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n2
+  target: n4
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n4
+  target: n2
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n3
+  target: n4
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n4
+  target: n3
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n1
+  target: n5
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n5
+  target: n1
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n2
+  target: n7
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n7
+  target: n2
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n3
+  target: n6
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n6
+  target: n3
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n4
+  target: n9
+  liking: 55
+  trust: 60
+  closeness: 45
+- source: n9
+  target: n4
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n5
+  target: n6
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n6
+  target: n5
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n6
+  target: n7
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n7
+  target: n6
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n7
+  target: n8
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n8
+  target: n7
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n8
+  target: n9
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n9
+  target: n8
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n9
+  target: n5
+  liking: 55
+  trust: 60
+  closeness: 30
+- source: n5
+  target: n9
+  liking: 55
+  trust: 60
+  closeness: 30

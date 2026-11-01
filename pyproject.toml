@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "living-school-social-sim"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["pydantic==2.13.4", "PyYAML==6.0.3"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2", "mypy==1.18.2", "types-PyYAML==6.0.12.20250915"]
+
+[tool.setuptools.packages.find]
+include = ["social_sim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
