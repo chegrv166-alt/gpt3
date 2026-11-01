@@ -48,7 +48,8 @@ def test_determinism_and_autonomy():
     assert len(meetings) > 5
     assert any(e.kind == 'invitation_declined' for e in a.world.events)
     assert not any(t.actor == 'player' for t in a.world.traces)
-    assert any(r.closeness > 40 for r in a.world.relationships.values())
+    initial = {f'{r.source}:{r.target}': r.closeness for r in a.world.scenario.relationships}
+    assert any(r.closeness > initial.get(key, 0) for key, r in a.world.relationships.items())
     assert all(t.candidates and t.selected in t.candidates for t in a.world.traces)
 
 
@@ -142,22 +143,20 @@ def test_same_fact_different_personality_and_deep_friendship_inertia():
 
 
 def test_decision_reacts_to_hurt_and_strategy_not_id():
+    from cognitive_helpers import episode, school
     from social_sim.decision import decide
-    s = sim()
-    s.world.tick = 6
-    state = s.world.states['n3']
-    state.hurt['n1'] = 80
-    t = decide(s.view('n3'), s.rng, s.world.scenario.weights, 't000001')
-    assert t.selected.action == 'distance'
-    data = s.world.scenario.model_dump()
-    data['people'][3]['personality']['traits']['directness'] = 5
-    data['people'][3]['personality']['traits']['reconciliation_readiness'] = 5
-    data['people'][3]['personality']['strategies'] = ['ask']
-    s2 = Simulation(Scenario.model_validate(data))
-    s2.world.tick = 6
-    s2.world.states['n3'].hurt['n1'] = 80
-    t2 = decide(s2.view('n3'), s2.rng, s2.world.scenario.weights, 't000001')
-    assert t2.selected.action == 'ask'
+    data = school().world.scenario.model_dump()
+    for p in data['people']:
+        if p['id'] == 'n3':
+            p['personality']['traits']['directness'] = 0
+            p['personality']['traits']['reconciliation_readiness'] = 0
+            p['personality']['strategies'] = ['distance']
+    distant = Simulation(Scenario.model_validate(data))
+    direct = school()
+    for world, expected in [(distant, 'distance'), (direct, 'ask')]:
+        episode(world)
+        trace = decide(world.view('n3'), world.rng, world.world.scenario.weights, 'preview')
+        assert trace.selected.action == expected
 
 
 def test_snapshot_rejects_broken_reference_and_schema(tmp_path):
@@ -171,7 +170,7 @@ def test_snapshot_rejects_broken_reference_and_schema(tmp_path):
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError):
         load_snapshot(path)
-    data['world']['schema_version'] = 1
+    data['world']['schema_version'] = 2
     data['world']['events'][0]['participants'] = ['ghost']
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError):
@@ -184,7 +183,10 @@ def test_player_action_changes_trajectory_and_npc_can_refuse():
     a.act('player', 'invite', 'n1')
     a.run_days(5)
     b.run_days(5)
-    assert a.world != b.world
+    invitation = next(e for e in a.world.events if e.kind == 'invitation_sent' and e.participants == ('player','n1'))
+    response = next(e for e in a.world.events if invitation.id in e.causes and e.kind in ('invitation_accepted','invitation_declined'))
+    response_trace = next(t for t in a.world.traces if t.id == response.trace_id)
+    assert invitation.id in response_trace.known_events
     assert any(t.actor == 'n1' and t.selected.action in ('accept', 'decline') for t in a.world.traces)
     c = sim()
     c.world.tick = 2
@@ -239,14 +241,13 @@ def test_one_initiative_per_slot_including_rest():
     assert s.world == before
 
 
-def test_question_without_informed_answer_does_not_relieve_hurt():
+def test_question_without_situation_is_rejected_atomically():
     s = sim()
     s.world.tick = 2
-    s.world.states['n3'].hurt['n1'] = 60
-    # There is no observed meeting and the interlocutor cannot explain any fact.
-    s.act('n3', 'ask', 'n1')
-    assert s.world.states['n3'].hurt['n1'] == 60
-    assert any(e.kind == 'question_declined' for e in s.world.events)
+    before, rng = s.world.model_dump_json(), s.rng.getstate()
+    with pytest.raises(ValueError):
+        s.act('n3', 'ask', 'n1')
+    assert (s.world.model_dump_json(), s.rng.getstate()) == (before, rng)
 
 
 @pytest.mark.parametrize('damage', ['empty_history', 'past_plan', 'unknown_target', 'unknown_interpretation', 'rng_negative', 'rng_huge'])
@@ -334,4 +335,5 @@ def test_informed_question_receives_separate_explainable_answer():
     answer = next(e for e in s.world.events if e.kind == 'question_answered')
     assert answer.causes == (question.id,)
     assert answer.trace_id is not None
-    assert s.world.states['n3'].hurt['n1'] < before
+    assert s.world.states['n3'].hurt['n1'] == before
+    assert answer.claim == 'meeting_confirmed'

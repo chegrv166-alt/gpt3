@@ -24,7 +24,11 @@ def save_snapshot(simulation: Simulation, path: Path) -> None:
 
 
 def load_snapshot(path: Path) -> Simulation:
-    snapshot = Snapshot.model_validate_json(path.read_text(encoding='utf-8'))
+    raw = json.loads(path.read_text(encoding='utf-8'))
+    version_number = raw.get('world', {}).get('schema_version') if isinstance(raw, dict) else None
+    if version_number != 2:
+        raise ValueError(f'Неподдерживаемая версия снимка {version_number}; требуется 2. Неявная миграция не выполняется.')
+    snapshot = Snapshot.model_validate(raw)
     simulation = Simulation(snapshot.world.scenario)
     simulation.world = snapshot.world
     version, internal, gauss = snapshot.rng_state

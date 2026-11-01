@@ -1,0 +1,185 @@
+schema_version: 1
+description: Синтетический контролируемый когнитивный контраст, не канон.
+people:
+- id: n1
+  name: Тестовый участник n1
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 4
+      closeness: 3
+      autonomy: 2
+      recognition: 3
+      stability: 3
+      novelty: 4
+      initiative: 5
+      sociability: 5
+      openness: 4
+      directness: 4
+      tact: 4
+      conformity: 2
+      rejection_sensitivity: 2
+      humiliation_sensitivity: 2
+      suspiciousness: 1
+      impulsivity: 3
+      grudge_persistence: 1
+      reconciliation_readiness: 5
+      inclusion_expectation: 3
+      contact_expectation: 3
+      reciprocity_expectation: 3
+      loyalty_priority: 4
+      honesty_priority: 4
+      privacy_priority: 2
+    beliefs: []
+    strategies:
+    - invite
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n2
+  name: Тестовый участник n2
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: true
+  personality:
+    traits:
+      belonging: 3
+      closeness: 3
+      autonomy: 3
+      recognition: 2
+      stability: 3
+      novelty: 4
+      initiative: 4
+      sociability: 4
+      openness: 4
+      directness: 4
+      tact: 3
+      conformity: 2
+      rejection_sensitivity: 1
+      humiliation_sensitivity: 2
+      suspiciousness: 1
+      impulsivity: 3
+      grudge_persistence: 1
+      reconciliation_readiness: 4
+      inclusion_expectation: 2
+      contact_expectation: 2
+      reciprocity_expectation: 3
+      loyalty_priority: 3
+      honesty_priority: 3
+      privacy_priority: 3
+    beliefs: []
+    strategies:
+    - ask
+    goals:
+    - kind: connect
+      priority: 0.8
+- id: n3
+  name: Тестовый участник n3
+  biography: Неканоническая фикстура для проверки социальных решений; биография игрового
+    героя не задана.
+  synthetic: true
+  is_player: false
+  personality:
+    traits:
+      belonging: 5
+      closeness: 5
+      autonomy: 2
+      recognition: 3
+      stability: 5
+      novelty: 1
+      initiative: 2
+      sociability: 3
+      openness: 2
+      directness: 5
+      tact: 3
+      conformity: 4
+      rejection_sensitivity: 5
+      humiliation_sensitivity: 4
+      suspiciousness: 5
+      impulsivity: 2
+      grudge_persistence: 5
+      reconciliation_readiness: 5
+      inclusion_expectation: 5
+      contact_expectation: 4
+      reciprocity_expectation: 5
+      loyalty_priority: 5
+      honesty_priority: 5
+      privacy_priority: 4
+    beliefs:
+    - id: exclusion
+      condition: friends_met_without_me
+      interpretation: excluded
+      strength: 1.0
+      description: Встреча друзей без меня может означать исключение.
+    strategies:
+    - ask
+    goals:
+    - kind: connect
+      priority: 0.8
+relationships:
+- source: n1
+  target: n2
+  liking: 55.0
+  trust: 60.0
+  closeness: 30.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+- source: n2
+  target: n1
+  liking: 55.0
+  trust: 60.0
+  closeness: 30.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+- source: n1
+  target: n3
+  liking: 55.0
+  trust: 60.0
+  closeness: 30.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+- source: n3
+  target: n1
+  liking: 55.0
+  trust: 60.0
+  closeness: 45.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+- source: n2
+  target: n3
+  liking: 55.0
+  trust: 60.0
+  closeness: 30.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+- source: n3
+  target: n2
+  liking: 55.0
+  trust: 60.0
+  closeness: 45.0
+  tension: 0.0
+  romantic_interest: 0.0
+  perceived_reciprocity: 50.0
+  shared_meetings: 0
+weights:
+  need: 1.0
+  personality: 1.0
+  goal: 1.0
+  relationship: 1.0
+  emotion: 1.0
+  selection_band: 3.0
+meeting_context: no_prior_group_plan
